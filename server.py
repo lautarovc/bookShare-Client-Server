@@ -7,7 +7,7 @@ from fileTransfer import sendFile
 
 
 class server(threading.Thread):
-	def __init__(self, threadId, connection, address, serverPort, clientLock, portLock, transferPorts):
+	def __init__(self, threadId, connection, address, serverPort, clientLock, portLock, transferPorts, dlPerClientLock, clientListLock):
 		threading.Thread.__init__(self)
 		self.threadId = threadId
 		self.connection = connection
@@ -16,10 +16,19 @@ class server(threading.Thread):
 		self.clientLock = clientLock
 		self.portLock = portLock
 		self.transferPorts = transferPorts
+		self.dlPerClientLock = dlPerClientLock
+		self.clientListLock = clientListLock
 
 	def run(self):
 
 		connectionSuccess = self.createSocket()
+
+		self.loadDownloadedBooks()
+		self.loadHistory()
+
+		#menuThread = menu(self.dlPerClient, self.clientList)
+		#menuThread.start()
+
 		if (not connectionSuccess):
 			self.connection.close()
 			return
@@ -31,10 +40,10 @@ class server(threading.Thread):
 		while True:
 			clientOption = self.connection.recv(1024).decode()
 			
-			if (clientOption == '1'):
+			if (clientOption == '2'):
 				self.sendList()
 
-			elif (clientOption == '2'):
+			elif (clientOption == '3'):
 				
 				bookName = self.connection.recv(1024).decode()
 
@@ -48,13 +57,11 @@ class server(threading.Thread):
 				self.portLock.release()
 				# FIN AREA CRITICA PORT LOCK
 
-				self.connection.send(str(transferPort).encode())
-
-
-				transferThread = sendFile(bookName, transferPort, self.address)
-
+				transferThread = sendFile(bookName, transferPort, self.address, self.dlPerClient, self.dlPerClientLock)
 
 				transferThread.start()
+
+				self.connection.send(str(transferPort).encode())
 
 			elif (clientOption == '0'):
 				self.connection.close()
@@ -79,8 +86,11 @@ class server(threading.Thread):
 		self.connection = connection
 		return 1
 
+	# @def sendList(self)
+	# Envía la lista de libros disponibles para descargar 
 	def sendList(self):
-		bookListData = open("bookList.json").read()
+
+		bookListData = open("./Data/bookList.json").read()
 
 		self.connection.send(bookListData.encode())
 
@@ -88,7 +98,110 @@ class server(threading.Thread):
 
 		if clientCheck == "Received":
 			print("Book list sent successfully.\n")
+			self.saveHistory()
 		else:
 			print("Error: Book list not received by client.\n")
 
+	# @def loadDownloadedBooks(self)
+	# Carga la lista de libros descargados
+	def loadDownloadedBooks(self):
+		#Cargamos la lista de libros descargados
+		downloadList = open("./Data/downloadedBooks.json", "r")
+
+		self.dlPerClient = json.loads(downloadList.read())
+
+		downloadList.close()
+
+	# @def loadHistory(self)
+	# Carga la lista de los clientes que consultaron la lista de libros para descargar 
+	def loadHistory(self):
+		file = open("./Data/clientList.json", "r")
+
+		self.clientList = json.loads(file.read())
+
+		file.close()
+
+	# @def saveHistory(self)
+	# Guarda la lista de los clientes que consultaron la lista de libros para descargar en un archivo JSON
+	def saveHistory(self):
+
+		self.clientListLock.acquire()
+
+		if not (self.address[0] in self.clientList):
+			self.clientList.append(self.address[0])
+			file = open("./Data/clientList.json", "w")
+
+			json.dump(self.clientList, file)
+
+			file.close()
+
+
+		self.clientListLock.release()
+
+
+class menu(threading.Thread):
+	def __init__(self):
+		threading.Thread.__init__(self)
+
+	# @def run(self)
+	# Enfectúa las opciones del menú del servidor para visualizar las estadísticas pedidas
+	def run(self):
+
+		while True:
+
+			print("\nIngrese una opcion:\n1. Para ver los libros descargados\n2. Para ver los clientes que han consultado.\n3. Para ver el numero de descargas por libro por cliente.\n4. Para ver las descargas en curso.\n0. Para salir.")
+			option = input()
+
+			if (option == '1'):
+				self.loadDownloadedBooks()
+				self.showDownloadedBooks()
+
+			elif (option == '2'):
+				self.loadHistory()
+				self.showClientList()
+
+			elif (option == '3'):
+				self.loadDownloadedBooks()
+				self.showDownloadsPerClient()
+
+			elif (option == '4'):
+				continue
+				#self.showCurrentDownloads()
+
+			elif (option == '0'):
+				break
+
+	# @def loadDownloadedBooks(self)
+	# Caega la lista de libros descargados 
+	def loadDownloadedBooks(self):
+		downloadList = open("./Data/downloadedBooks.json", "r")
+
+		self.dlPerClient = json.loads(downloadList.read())
+
+		downloadList.close()
+
+
+	def loadHistory(self):
+		file = open("./Data/clientList.json", "r")
+
+		self.clientList = json.loads(file.read())
+
+		file.close()
+
+	def showDownloadedBooks(self):
+		print()
+		for key in self.dlPerClient:
+			print(key)
+
+	def showClientList(self):
+		print()
+		for client in self.clientList:
+			print(client)
+
+	def showDownloadsPerClient(self):
+		print()
+		for book in self.dlPerClient:
+			print(book+":\n")
+			for client in self.dlPerClient[book]:
+				print("\t"+client+": ", self.dlPerClient[book][client])
 

@@ -5,8 +5,8 @@ import threading
 from server import *
 
 daemonSocket = socket.socket()
-host = socket.gethostname()
-#host = ''
+#host = socket.gethostname()
+host = ''
 
 port = 2810
 transferPorts = [9474]
@@ -20,6 +20,10 @@ threadList = []
 
 serverPort = port
 
+menuThread = menu()
+menuThread.start()
+
+
 while True:
 
 	connection, address = daemonSocket.accept()
@@ -29,11 +33,15 @@ while True:
 
 	portLock = threading.Lock()
 
+	dlPerClientLock = threading.Lock()
+
+	clientListLock = threading.Lock()
+
 	#Creacion de hilo de servidor con Id y puerto
 	threadId += 1
 	serverPort += 1
 
-	thread = server(threadId, connection, address, serverPort, clientLock, portLock, transferPorts)
+	thread = server(threadId, connection, address, serverPort, clientLock, portLock, transferPorts, dlPerClientLock, clientListLock)
 
 	thread.start()
 

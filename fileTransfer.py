@@ -6,11 +6,13 @@ import os
 from time import sleep
 
 class sendFile(threading.Thread):
-	def __init__(self, fileName, transferPort, address):
+	def __init__(self, fileName, transferPort, address, dlPerClient, dlPerClientLock):
 		threading.Thread.__init__(self)
 		self.fileName = fileName
 		self.transferPort = transferPort
 		self.address = address
+		self.dlPerClient = dlPerClient
+		self.dlPerClientLock = dlPerClientLock
 
 	def run(self):
 
@@ -45,10 +47,10 @@ class sendFile(threading.Thread):
 				return
 
 		file.close()
+
+		self.saveHistory()
+
 		self.connection.close()
-
-
-
 
 	def createSocket(self):
 		serverSocket = socket.socket()
@@ -69,14 +71,41 @@ class sendFile(threading.Thread):
 		self.connection = connection
 		return 1
 
+	def saveHistory(self):
+		self.dlPerClientLock.acquire()
+
+		if (not self.fileName in self.dlPerClient):
+			self.dlPerClient[self.fileName] = {self.address[0]:0}
+
+		elif (not self.address[0] in self.dlPerClient[self.fileName]): 
+			self.dlPerClient[self.fileName][self.address[0]] = 0
+
+
+		self.dlPerClient[self.fileName][self.address[0]] += 1
+
+		file = open("./Data/downloadedBooks.json", "w")
+
+		json.dump(self.dlPerClient, file)
+
+		file.close()
+
+		self.dlPerClientLock.release()
 
 
 class receiveFile(threading.Thread):
-	def __init__(self, fileName, transferPort, host):
+	def __init__(self, fileName, transferPort, host, transferStatus, transferStatusLock, dlPerServer, dlPerServerLock, isFile, isLinesFile, isFileInServer, isFileInServerLock):
 		threading.Thread.__init__(self)
 		self.fileName = fileName
 		self.transferPort = transferPort
 		self.host = host
+		self.transferStatus = transferStatus
+		self.transferStatusLock = transferStatusLock
+		self.dlPerServer = dlPerServer
+		self.dlPerServerLock = dlPerServerLock
+		self.isFile = isFile
+		self.isLinesFile = isLinesFile
+		self.isFileInServer = isFileInServer
+		self.isFileInServerLock = isFileInServerLock
 
 	def run(self):
 
@@ -85,15 +114,22 @@ class receiveFile(threading.Thread):
 		fileExists = int(self.clientSocket.recv(512).decode())
 
 		if not fileExists:
-			print("File unavailable in server.")
+			print("\nEl archivo no se encuentra en el servidor, probando con el siguiente...\n")
 			self.clientSocket.close()
+
+			# ENVIA MENSAJE A PAPA
+			self.isFileInServerLock.acquire()
+			self.isFileInServer.append(False)
+			self.isFileInServerLock.release()
 			return
+
+
 
 		self.receive()
 
+		self.saveHistory()
+
 		self.clientSocket.close()
-
-
 
 	def createSocket(self):
 		self.clientSocket = socket.socket()
@@ -109,28 +145,35 @@ class receiveFile(threading.Thread):
 			linesFile.write((str(i)+"\n").encode())
 
 			percentage = ((i+1)*100)//self.fileSize
-			movement = int(percentage//2.5)
+			#movement = int(percentage//2.5)
 
-			sys.stdout.write("\r[" + "=" * movement +  " " * (40-movement) + "]" +  str(percentage) + "%")
-			sys.stdout.flush()
+			self.transferStatusLock.acquire()
+
+			#self.transferStatus[self.fileName] = "[" + "=" * movement +  " " * (40-movement) + "]" +  str(percentage) + "%"
+			self.transferStatus[self.fileName] = str(percentage) + "%"
+
+			self.transferStatusLock.release()
 
 			sleep(0.025)
 
 			self.clientSocket.send(("Received "+str(i)).encode())
 
+		#self.transferStatusLock.acquire()		
+
+		#self.transferStatus[self.fileName] = ""
+
+		#self.transferStatusLock.release()
+
 	def receive(self):
 		self.fileSize = int(self.clientSocket.recv(1024).decode())
 
-		isFile = os.path.isfile(self.fileName)
-		isLinesFile = os.path.isfile(self.fileName+".downloaded")
-
-		if not isFile and not isLinesFile:
+		if not self.isFile and not self.isLinesFile:
 
 			file = open(self.fileName, 'wb')
 			linesFile = open(self.fileName+".downloaded", "wb")
 			begin = 0
 
-		elif isFile and isLinesFile:
+		elif self.isFile and self.isLinesFile:
 
 			file = open(self.fileName, 'ab')
 			linesFile = open(self.fileName+".downloaded", "r")
@@ -143,19 +186,19 @@ class receiveFile(threading.Thread):
 
 			begin = linesFileLast + 1
 
-		elif isFile and not isLinesFile:
+		elif self.isFile and not self.isLinesFile:
 
-			print("El libro ya está descargado. ¿Desea reemplazarlo? (y/n)\n")
-			opt = input()
+			os.remove(self.fileName)
+			file = open(self.fileName, 'wb')
+			linesFile = open(self.fileName+".downloaded", "wb")
+			begin = 0
 
-			if opt[0] == "y":
-				file = open(self.fileName, 'wb')
-				linesFile = open(self.fileName+".downloaded", "wb")
-				begin = 0
 
-			else:
-				self.clientSocket.close()
-				return
+		#ENVIO MENSAJE A PAPA, SI ESTA ARCHIVO
+		self.isFileInServerLock.acquire()
+		self.isFileInServer.append(True)
+		self.isFileInServerLock.release()
+
 
 		#Envio begin
 		self.clientSocket.send(str(begin).encode())
@@ -166,3 +209,19 @@ class receiveFile(threading.Thread):
 		os.remove(self.fileName+".downloaded")
 
 		file.close()
+
+	def saveHistory(self):
+		if (self.fileName in self.dlPerServer[self.host]):
+			return
+
+		self.dlPerServerLock.acquire()
+
+		file = open("downloadedBooks.json", "w")
+
+		self.dlPerServer[self.host].append(self.fileName)
+
+		json.dump(self.dlPerServer, file)
+
+		file.close()
+
+		self.dlPerServerLock.release()
