@@ -1,4 +1,14 @@
-# HOLA! Soy el hilo del servidor.
+"""
+	Redes de Computadoras I
+	Enero-Marzo 2018
+	Prof. Wilmer Pereira
+	Proyecto 1 
+	server.py
+
+	Autores:
+		Lautaro Villalón 12-10427
+		Yarima Luciani 13-10770
+"""
 
 import socket
 import threading
@@ -6,6 +16,9 @@ import json
 from fileTransfer import sendFile
 
 
+##
+# class server(threading.Thread)
+# Servidor 
 class server(threading.Thread):
 	def __init__(self, threadId, connection, address, serverPort, clientLock, portLock, transferPorts, dlPerClientLock, clientListLock):
 		threading.Thread.__init__(self)
@@ -19,8 +32,10 @@ class server(threading.Thread):
 		self.dlPerClientLock = dlPerClientLock
 		self.clientListLock = clientListLock
 
+	##
+	# def run(self)
+	# Corre el hilo del servidor 
 	def run(self):
-
 		connectionSuccess = self.createSocket()
 
 		self.loadDownloadedBooks()
@@ -67,10 +82,13 @@ class server(threading.Thread):
 				self.connection.close()
 				break
 
+	##
+	# def createSocket(self)
+	# Crea el socket del servidor 
 	def createSocket(self):
 		serverSocket = socket.socket()
-		host = socket.gethostname()
-		#host = ''
+		#host = socket.gethostname()
+		host = ''
 
 		serverSocket.bind((host, self.serverPort))
 
@@ -86,7 +104,8 @@ class server(threading.Thread):
 		self.connection = connection
 		return 1
 
-	# @def sendList(self)
+	##
+	# @def sendList(self)s
 	# Envía la lista de libros disponibles para descargar 
 	def sendList(self):
 
@@ -102,16 +121,17 @@ class server(threading.Thread):
 		else:
 			print("Error: Book list not received by client.\n")
 
+	##
 	# @def loadDownloadedBooks(self)
 	# Carga la lista de libros descargados
 	def loadDownloadedBooks(self):
-		#Cargamos la lista de libros descargados
 		downloadList = open("./Data/downloadedBooks.json", "r")
 
 		self.dlPerClient = json.loads(downloadList.read())
 
 		downloadList.close()
 
+	##
 	# @def loadHistory(self)
 	# Carga la lista de los clientes que consultaron la lista de libros para descargar 
 	def loadHistory(self):
@@ -121,6 +141,7 @@ class server(threading.Thread):
 
 		file.close()
 
+	##
 	# @def saveHistory(self)
 	# Guarda la lista de los clientes que consultaron la lista de libros para descargar en un archivo JSON
 	def saveHistory(self):
@@ -138,18 +159,21 @@ class server(threading.Thread):
 
 		self.clientListLock.release()
 
-
+##
+# class menu(threading.Thread)
+# Menu del servidor 
 class menu(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
 
+	##
 	# @def run(self)
 	# Enfectúa las opciones del menú del servidor para visualizar las estadísticas pedidas
 	def run(self):
 
 		while True:
 
-			print("\nIngrese una opcion:\n1. Para ver los libros descargados\n2. Para ver los clientes que han consultado.\n3. Para ver el numero de descargas por libro por cliente.\n4. Para ver las descargas en curso.\n0. Para salir.")
+			print("\nIngrese una opcion:\n1. Para ver los libros descargados\n2. Para ver los clientes que han consultado.\n3. Para ver el numero de descargas por libro por cliente.\n0. Para salir.")
 			option = input()
 
 			if (option == '1'):
@@ -171,8 +195,9 @@ class menu(threading.Thread):
 			elif (option == '0'):
 				break
 
+	##
 	# @def loadDownloadedBooks(self)
-	# Caega la lista de libros descargados 
+	# Carga en el menu la lista de libros descargados 
 	def loadDownloadedBooks(self):
 		downloadList = open("./Data/downloadedBooks.json", "r")
 
@@ -181,6 +206,9 @@ class menu(threading.Thread):
 		downloadList.close()
 
 
+	##
+	# @def loadHistory(self)
+	# Carga en el menu la lista de clientes que han consultado la lista de libros para descargar
 	def loadHistory(self):
 		file = open("./Data/clientList.json", "r")
 
@@ -188,16 +216,25 @@ class menu(threading.Thread):
 
 		file.close()
 
+	##
+	# @def showDownloadedBooks(self)
+	# Muestra en pantalla la lista de libros descargados 
 	def showDownloadedBooks(self):
 		print()
 		for key in self.dlPerClient:
 			print(key)
 
+	##
+	# @def showClientList(self)
+	# Muestra en pantalla la lista de clientes que han consultado la lista de libros para descargar 
 	def showClientList(self):
 		print()
 		for client in self.clientList:
 			print(client)
 
+	##
+	# @def showDownloadsPerClient(self)
+	# Muestra en pantalla los libros descargados por cliente 
 	def showDownloadsPerClient(self):
 		print()
 		for book in self.dlPerClient:

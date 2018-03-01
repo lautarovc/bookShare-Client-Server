@@ -1,3 +1,15 @@
+"""
+	Redes de Computadoras I
+	Enero-Marzo 2018
+	Prof. Wilmer Pereira
+	Proyecto 1 
+	fileTransfer.py
+
+	Autores:
+		Lautaro Villalón 12-10427
+		Yarima Luciani 13-10770
+"""
+
 import socket
 import threading
 import json
@@ -5,6 +17,9 @@ import sys
 import os
 from time import sleep
 
+##
+# @class sendFile(self)
+# Hilo para enviar libros 
 class sendFile(threading.Thread):
 	def __init__(self, fileName, transferPort, address, dlPerClient, dlPerClientLock):
 		threading.Thread.__init__(self)
@@ -14,8 +29,10 @@ class sendFile(threading.Thread):
 		self.dlPerClient = dlPerClient
 		self.dlPerClientLock = dlPerClientLock
 
+	##
+	# @def run(self)
+	# Corre el hilo para enviar libros 
 	def run(self):
-
 		connectionSuccess = self.createSocket()
 
 		if(not connectionSuccess):
@@ -52,10 +69,13 @@ class sendFile(threading.Thread):
 
 		self.connection.close()
 
+	##
+	# @def createSocket(self)
+	# Crea el socket para enviar libros
 	def createSocket(self):
 		serverSocket = socket.socket()
-		host = socket.gethostname()
-		#host = ''
+		#host = socket.gethostname()
+		host = ''
 
 		serverSocket.bind((host, self.transferPort))
 
@@ -71,6 +91,9 @@ class sendFile(threading.Thread):
 		self.connection = connection
 		return 1
 
+	##
+	# @def saveHistory(self)
+	# Guarda los libros descargados en un archivo JSON 
 	def saveHistory(self):
 		self.dlPerClientLock.acquire()
 
@@ -92,8 +115,11 @@ class sendFile(threading.Thread):
 		self.dlPerClientLock.release()
 
 
+##
+# @class receive(self)
+# Hilo para recibir libros 
 class receiveFile(threading.Thread):
-	def __init__(self, fileName, transferPort, host, transferStatus, transferStatusLock, dlPerServer, dlPerServerLock, isFile, isLinesFile, isFileInServer, isFileInServerLock):
+	def __init__(self, fileName, transferPort, host, transferStatus, transferStatusLock, dlPerServer, dlPerServerLock, isFile, isLinesFile):
 		threading.Thread.__init__(self)
 		self.fileName = fileName
 		self.transferPort = transferPort
@@ -104,26 +130,19 @@ class receiveFile(threading.Thread):
 		self.dlPerServerLock = dlPerServerLock
 		self.isFile = isFile
 		self.isLinesFile = isLinesFile
-		self.isFileInServer = isFileInServer
-		self.isFileInServerLock = isFileInServerLock
 
+	##
+	# @def run(self)
+	# Corre el hilo para recibir libros 
 	def run(self):
-
 		self.createSocket()
 
 		fileExists = int(self.clientSocket.recv(512).decode())
 
 		if not fileExists:
-			print("\nEl archivo no se encuentra en el servidor, probando con el siguiente...\n")
+			print("Archivo no conseguido en este servidor, por favor cambie de servidor.")
 			self.clientSocket.close()
-
-			# ENVIA MENSAJE A PAPA
-			self.isFileInServerLock.acquire()
-			self.isFileInServer.append(False)
-			self.isFileInServerLock.release()
 			return
-
-
 
 		self.receive()
 
@@ -131,6 +150,9 @@ class receiveFile(threading.Thread):
 
 		self.clientSocket.close()
 
+	##
+	# @def createSocket(self)
+	# Crea el socket para recibir libros
 	def createSocket(self):
 		self.clientSocket = socket.socket()
 		#host = socket.gethostname()
@@ -138,8 +160,10 @@ class receiveFile(threading.Thread):
 
 		self.clientSocket.connect((self.host, self.transferPort))
 
+	##
+	# @def writeFile(self)
+	# Escribe el libro que está siendo descargado, línea por línea
 	def writeFile(self, file, linesFile, begin):
-
 		for i in range(begin, self.fileSize):
 			file.write(self.clientSocket.recv(4096))
 			linesFile.write((str(i)+"\n").encode())
@@ -158,12 +182,9 @@ class receiveFile(threading.Thread):
 
 			self.clientSocket.send(("Received "+str(i)).encode())
 
-		#self.transferStatusLock.acquire()		
-
-		#self.transferStatus[self.fileName] = ""
-
-		#self.transferStatusLock.release()
-
+	##
+	# @def createSocket(self)
+	# Recibe el libro
 	def receive(self):
 		self.fileSize = int(self.clientSocket.recv(1024).decode())
 
@@ -193,13 +214,6 @@ class receiveFile(threading.Thread):
 			linesFile = open(self.fileName+".downloaded", "wb")
 			begin = 0
 
-
-		#ENVIO MENSAJE A PAPA, SI ESTA ARCHIVO
-		self.isFileInServerLock.acquire()
-		self.isFileInServer.append(True)
-		self.isFileInServerLock.release()
-
-
 		#Envio begin
 		self.clientSocket.send(str(begin).encode())
 
@@ -209,7 +223,10 @@ class receiveFile(threading.Thread):
 		os.remove(self.fileName+".downloaded")
 
 		file.close()
-
+	
+	##
+	# @def saveHistory(self)
+	# Guarda los libros descargados en un archivo JSON 
 	def saveHistory(self):
 		if (self.fileName in self.dlPerServer[self.host]):
 			return

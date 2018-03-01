@@ -1,4 +1,14 @@
-# HOLA, SOY EL SERVIDOR DAEMON.
+"""
+	Redes de Computadoras I
+	Enero-Marzo 2018
+	Prof. Wilmer Pereira
+	Proyecto 1 
+	serverDaemon.py
+
+	Autores:
+		Lautaro Villalón 12-10427
+		Yarima Luciani 13-10770
+"""
 
 import socket
 import threading
